@@ -9,31 +9,23 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors()); // allow local dev talk
+app.use(cors({ origin: ['http://localhost:5173'] })); // allow frontend dev
 app.use(express.json());
 
-app.get('/', (req, res) => {
-    res.send('SomaAI backend alive');
-});
+app.get('/', (req, res) => res.send('SomaAI backend alive'));
 
-/**
- * POST /api/analyze
- * Body: { prompt: "user text" }
- * Response: { ok: true, result: "AI text..." } or { ok:false, error: "..." }
- */
 app.post('/api/analyze', async (req, res) => {
     try {
-        const { prompt } = req.body;
-        if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
-            return res.status(400).json({ ok: false, error: 'prompt (string) is required in JSON body' });
+        const { prompt, symptoms } = req.body;
+        const userText = prompt ?? symptoms; // accept either field
+        if (!userText || typeof userText !== 'string') {
+            return res.status(400).json({ ok: false, error: 'prompt (string) or symptoms required' });
         }
-
-        // call the OpenRouter client
-        const aiText = await getAIResponse(prompt.trim());
-
+        // call OpenRouter client
+        const aiText = await getAIResponse(userText);
         return res.json({ ok: true, result: aiText });
     } catch (err) {
-        console.error('Server /api/analyze error:', err.message || err);
+        console.error('/api/analyze error:', err.message || err);
         return res.status(500).json({ ok: false, error: 'Internal server error' });
     }
 });
