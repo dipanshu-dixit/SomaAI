@@ -1,70 +1,58 @@
-import React, { useState } from "react";
-import {
-    Box,
-    Input,
-    InputGroup,
-    InputRightElement,
-    IconButton,
-    Button,
-    Text,
-    VStack,
-    Spinner
-} from "@chakra-ui/react";
-import { SearchIcon } from "@chakra-ui/icons";
-import axios from "axios";
+// frontend/src/components/SymptomForm.jsx
+import { useState } from "react";
+import { Box, Textarea, Button, Alert, AlertIcon } from "@chakra-ui/react";
+import { analyze } from "../api/api";
 
-export default function SymptomForm() {
-    const [symptom, setSymptom] = useState("");
-    const [result, setResult] = useState("");
+export default function SymptomForm({ onResult }) {
+    const [symptoms, setSymptoms] = useState("");
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const handleSubmit = async () => {
-        if (!symptom) return;
+    const handleSubmit = async (e) => {
+        e.preventDefault();
         setLoading(true);
+        setError(null);
+
         try {
-            const { data } = await axios.post(
-                `${import.meta.env.VITE_API_BASE_URL}/analyze`,
-                { symptom }
-            );
-            setResult(data.result || "No result found.");
-        } catch (error) {
-            setResult("Error connecting to backend.");
+            const res = await analyze(symptoms);
+            if (res.ok) {
+                onResult(res.result); // Pass structured object up
+            } else {
+                setError(res.error || "Something went wrong");
+            }
+        } catch (err) {
+            setError(err.message);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <VStack spacing={4}>
-            <InputGroup>
-                <Input
-                    placeholder="Enter your symptom"
-                    value={symptom}
-                    onChange={(e) => setSymptom(e.target.value)}
-                />
-                <InputRightElement>
-                    <IconButton
-                        aria-label="Analyze"
-                        icon={<SearchIcon />}
-                        onClick={handleSubmit}
-                    />
-                </InputRightElement>
-            </InputGroup>
-
-            <Button
-                colorScheme="teal"
-                width="full"
-                onClick={handleSubmit}
-                isDisabled={loading}
+        <Box as="form" onSubmit={handleSubmit} mb={6}>
+            <Textarea
+                value={symptoms}
+                onChange={(e) => setSymptoms(e.target.value)}
+                placeholder="Describe your symptoms..."
+                rows={4}
+                mb={4}
+                resize="vertical"
+            />
+            <Button 
+                type="submit" 
+                isLoading={loading}
+                loadingText="Analyzing..."
+                colorScheme="blue"
+                size="lg"
+                isDisabled={!symptoms.trim()}
             >
-                {loading ? <Spinner size="sm" /> : "Analyze"}
+                Analyze Symptoms
             </Button>
-
-            {result && (
-                <Box p={4} bg="gray.50" borderRadius="md" width="full">
-                    <Text>{result}</Text>
-                </Box>
+            {error && (
+                <Alert status="error" mt={4}>
+                    <AlertIcon />
+                    {error}
+                </Alert>
             )}
-        </VStack>
+        </Box>
     );
 }

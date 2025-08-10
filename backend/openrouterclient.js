@@ -1,40 +1,44 @@
 // backend/openrouterClient.js
-const axios = require('axios');
-require('dotenv').config();
+import axios from "axios";
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const API_KEY = process.env.OPENROUTER_API_KEY;
+export async function analyzeSymptoms(symptoms) {
+  const prompt = `
+You are a medical information assistant. 
+Analyze the given symptoms and respond ONLY in the following JSON format (no extra text outside JSON):
 
-async function getAIResponse(prompt) {
-  if (!API_KEY) throw new Error('OPENROUTER_API_KEY missing in .env');
-
-  try {
-    const payload = {
-      model: 'openai/gpt-3.5-turbo', // safe default; change later if you want
-      messages: [
-        { role: 'system', content: 'You are an empathetic, concise medical assistant. Provide clear guidance and recommend urgent care when needed.' },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 600
-    };
-
-    const res = await axios.post(OPENROUTER_URL, payload, {
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000
-    });
-
-    // handle common shapes
-    const data = res.data || {};
-    const text = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || data?.result;
-    return text || 'No response from AI.';
-  } catch (err) {
-    // give useful debugging info in server logs
-    console.error('OpenRouter API error:', err.response?.data || err.message || err);
-    throw new Error('OpenRouter API error');
-  }
+{
+  "summary": "short plain-language summary (2-3 sentences)",
+  "possible_causes": ["condition1", "condition2", "..."],
+  "urgency": "low" | "medium" | "high",
+  "next_steps": ["step1", "step2", "..."]
 }
 
-module.exports = { getAIResponse };
+Use cautious, non-diagnostic language. Do not make absolute claims. Always recommend professional evaluation.
+  
+Symptoms: ${symptoms}
+  `;
+
+  const res = await axios.post(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      model: "openai/gpt-4o-mini", // or whatever model you're using
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  let parsed;
+  try {
+    parsed = JSON.parse(res.data.choices[0].message.content);
+  } catch (e) {
+    throw new Error("Invalid JSON from AI");
+  }
+
+  return parsed;
+}

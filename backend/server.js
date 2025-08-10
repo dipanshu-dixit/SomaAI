@@ -1,35 +1,29 @@
 // backend/server.js
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const { getAIResponse } = require('./openrouterClient');
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { analyzeSymptoms } from "./openrouterClient.js";
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
-
-app.use(cors({ origin: ['http://localhost:5173'] })); // allow frontend dev
+app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => res.send('SomaAI backend alive'));
+app.post("/api/analyze", async (req, res) => {
+    const { symptoms } = req.body;
+    if (!symptoms || typeof symptoms !== "string" || symptoms.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: "Missing or invalid 'symptoms' field" });
+    }
 
-app.post('/api/analyze', async (req, res) => {
     try {
-        const { prompt, symptoms } = req.body;
-        const userText = prompt ?? symptoms; // accept either field
-        if (!userText || typeof userText !== 'string') {
-            return res.status(400).json({ ok: false, error: 'prompt (string) or symptoms required' });
-        }
-        // call OpenRouter client
-        const aiText = await getAIResponse(userText);
-        return res.json({ ok: true, result: aiText });
+        const result = await analyzeSymptoms(symptoms);
+        res.json({ ok: true, result });
     } catch (err) {
-        console.error('/api/analyze error:', err.message || err);
-        return res.status(500).json({ ok: false, error: 'Internal server error' });
+        console.error("Analysis error:", err.message);
+        res.status(500).json({ ok: false, error: "Failed to analyze symptoms" });
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`✅ SomaAI backend running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
