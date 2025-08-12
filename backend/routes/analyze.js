@@ -5,16 +5,8 @@ import dotenv from "dotenv";
 dotenv.config();
 const router = express.Router();
 
-router.post("/analyze", async (req, res) => {
-    try {
-        const { symptoms } = req.body;
-
-        if (!symptoms || symptoms.trim() === "") {
-            return res.status(400).json({ error: "Please describe your symptoms" });
-        }
-
-        // SYSTEM PROMPT — sets the tone & cosmic mode integration
-        const systemPrompt = `
+// Move system prompt to module level for performance
+const SYSTEM_PROMPT = `
 You are SymptomAI — a friendly, approachable, Gen Z medical assistant.  
 Your job:
 - Explain possible conditions in short, casual sentences with emojis.
@@ -29,14 +21,48 @@ Your job:
     "next_steps": ["Step 1", "Step 2", "Step 3"]
   }
 - Always include at least 1 emoji in the summary.
-    `;
+`;
+
+// Enhanced CSRF protection middleware
+function csrfProtection(req, res, next) {
+    const referer = req.get('Referer');
+    const origin = req.get('Origin');
+    const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:5173'];
+    
+    // Require either Origin or Referer header
+    if (!origin && !referer) {
+        return res.status(403).json({ error: 'Missing origin/referer header' });
+    }
+    
+    const requestOrigin = origin || referer;
+    if (!allowedOrigins.some(allowed => requestOrigin.startsWith(allowed))) {
+        return res.status(403).json({ error: 'Forbidden origin' });
+    }
+    
+    next();
+}
+
+router.post("/analyze", csrfProtection, async (req, res) => {
+    try {
+        const { symptoms } = req.body;
+
+        // Enhanced input validation
+        if (!symptoms || typeof symptoms !== 'string' || symptoms.trim() === "") {
+            return res.status(400).json({ error: "Please describe your symptoms" });
+        }
+        
+        // Validate API key
+        if (!process.env.OPENROUTER_API_KEY) {
+            console.error('OPENROUTER_API_KEY not configured');
+            return res.status(500).json({ error: "Service temporarily unavailable" });
+        }
 
         const response = await axios.post(
             "https://openrouter.ai/api/v1/chat/completions",
             {
                 model: "openai/gpt-4o-mini",
                 messages: [
-                    { role: "system", content: systemPrompt },
+                    { role: "system", content: SYSTEM_PROMPT },
                     { role: "user", content: `User symptoms: ${symptoms}` }
                 ],
                 temperature: 0.8,
@@ -46,10 +72,17 @@ Your job:
                     "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
                 },
+                timeout: 30000,
+                validateStatus: (status) => status < 500
             }
         );
 
-        const aiContent = response.data.choices[0]?.message?.content;
+        if (!response.data?.choices?.[0]?.message?.content) {
+            console.error("Invalid API response structure:", response.data);
+            return res.status(500).json({ error: "Invalid response from AI service" });
+        }
+        
+        const aiContent = response.data.choices[0].message.content;
 
         let parsed;
         try {
@@ -63,7 +96,26 @@ Your job:
 
     } catch (error) {
         console.error("Error analyzing symptoms:", error);
-        res.status(500).json({ error: "Something went wrong" });
+        
+        // Handle specific error types
+        if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+            return res.status(503).json({ error: "AI service temporarily unavailable" });
+        }
+        
+        if (error.response?.status === 401) {
+            return res.status(500).json({ error: "Authentication failed with AI service" });
+        }
+        
+        if (error.response?.status === 429) {
+            return res.status(429).json({ error: "Rate limit exceeded, please try again later" });
+        }
+        
+        if (error.response?.status >= 400 && error.response?.status < 500) {
+            return res.status(400).json({ error: "Invalid request to AI service" });
+        }
+        
+        // Generic server error
+        res.status(500).json({ error: "Analysis service temporarily unavailable" });
     }
 });
 

@@ -1,83 +1,106 @@
 import React, { useState } from 'react';
-import { Container, VStack, Heading, Text, Box, Textarea, Button, useToast } from '@chakra-ui/react';
-import { motion } from 'framer-motion';
-import ResultCard from '@/components/ResultCard';
-import axios from 'axios';
+import {
+    Box, Container, Heading, Input, IconButton, Grid, GridItem,
+    Button, Text, VStack, HStack, useToast, chakra
+} from '@chakra-ui/react';
+import { SearchIcon } from '@chakra-ui/icons';
+import MCQModal from '../components/MCQModal';
+import { getQuestions } from '../api/api';
+import { useNavigate } from 'react-router-dom';
 
-const MotionHeading = motion(Heading);
-const MotionBox = motion(Box);
-
-const cosmicLines = [
-    "✨ This feels a bit heavy — let’s figure it out together.",
-    "🌌 I know this sounds scary — we’ll break it down step-by-step.",
-    "🌿 Small steps today, bigger wins tomorrow."
-];
-
-function maybeAddPersonality(result) {
-    if (!result || !result.result) return result;
-    // 40% chance to append a small cosmic feel
-    if (Math.random() < 0.4) {
-        const pick = cosmicLines[Math.floor(Math.random() * cosmicLines.length)];
-        return { ...result, result: { ...result.result, summary: `${result.result.summary} ${pick}` } };
-    }
-    return result;
-}
+const QuickTile = ({ emoji, label, onClick }) => (
+    <Button onClick={onClick} variant="ghost" bg="white" boxShadow="sm" borderRadius="md" h="14">
+        <HStack spacing={3}>
+            <chakra.span fontSize="lg">{emoji}</chakra.span>
+            <Text fontWeight="semibold">{label}</Text>
+        </HStack>
+    </Button>
+);
 
 export default function Home() {
-    const [symptoms, setSymptoms] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState(null);
+    const [symptom, setSymptom] = useState('');
+    const [questions, setQuestions] = useState([]);
+    const [isOpen, setIsOpen] = useState(false);
     const toast = useToast();
+    const navigate = useNavigate();
 
-    const handleSubmit = async () => {
-        if (!symptoms.trim()) {
-            toast({ title: 'Type your symptoms', status: 'warning', duration: 1400, isClosable: true });
-            return;
-        }
-        setLoading(true);
-        setResult(null);
+    const handleQuick = async (label) => {
+        setSymptom(label);
+        await loadQuestions(label);
+    };
+
+    const loadQuestions = async (sym) => {
         try {
-            const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/analyze`, { symptoms }, { timeout: 30000 });
-            const enhanced = maybeAddPersonality(res.data);
-            setResult(enhanced);
+            toast({ title: 'Loading questions...', status: 'info', duration: 1000 });
+            const qs = await getQuestions(sym);
+            setQuestions(qs || []);
+            setIsOpen(true);
         } catch (err) {
-            console.error(err);
-            toast({ title: 'API error', description: err.message || 'Something went wrong', status: 'error', duration: 3000, isClosable: true });
-        } finally {
-            setLoading(false);
+            console.error('Error loading questions:', err);
+            toast({ 
+                title: 'Error', 
+                description: err.message || 'Could not load questions', 
+                status: 'error',
+                duration: 5000
+            });
         }
     };
 
+    const onSubmitSearch = async (e) => {
+        e?.preventDefault();
+        if (!symptom?.trim()) return toast({ title: 'Type anything!', status: 'warning' });
+        await loadQuestions(symptom);
+    };
+
     return (
-        <Box minH="100vh" bgGradient="linear(to-br, brand.600, purple.600)" py={12}>
-            <Container maxW="container.md" bg="transparent">
-                <VStack spacing={6} align="stretch">
-                    <MotionHeading
-                        as="h1"
-                        size="2xl"
-                        textAlign="center"
-                        color="white"
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6 }}
-                    >
-                        🌌 SomaAI
-                    </MotionHeading>
+        <Container maxW="container.md" py={8}>
+            <VStack spacing={6} align="stretch">
+                <Box bgGradient="linear(to-r, blue.400, purple.400)" p={6} borderRadius="md" color="white">
+                    <HStack justify="space-between">
+                        <Heading size="lg">SymptomAI</Heading>
+                        <Button variant="ghost" colorScheme="whiteAlpha">☰</Button>
+                    </HStack>
+                    <Text mt={4} opacity={0.9}>Understand your body and mind</Text>
+                    <form onSubmit={onSubmitSearch}>
+                        <HStack mt={4}>
+                            <Input
+                                placeholder="Search for a symptom or question"
+                                value={symptom}
+                                onChange={(e) => setSymptom(e.target.value)}
+                                bg="white"
+                                color="gray.800"
+                                borderRadius="full"
+                            />
+                            <IconButton type="submit" aria-label="search" icon={<SearchIcon />} colorScheme="blue" />
+                        </HStack>
+                    </form>
+                </Box>
 
-                    <Text color="whiteAlpha.800" textAlign="center">Quick, friendly health guidance — with a tiny sprinkle of wisdom ✨</Text>
+                <Box p={4} bg="white" borderRadius="md" boxShadow="sm">
+                    <Heading size="md" mb={3}>Check your symptoms</Heading>
+                    <Grid templateColumns="repeat(3, 1fr)" gap={3}>
+                        <GridItem><QuickTile emoji="💧" label="Headache" onClick={() => handleQuick('Headache')} /></GridItem>
+                        <GridItem><QuickTile emoji="😴" label="Can't sleep" onClick={() => handleQuick('Can\'t sleep')} /></GridItem>
+                        <GridItem><QuickTile emoji="❤️" label="Chest pain" onClick={() => handleQuick('Chest pain')} /></GridItem>
+                        <GridItem><QuickTile emoji="🥵" label="Fever" onClick={() => handleQuick('Fever')} /></GridItem>
+                        <GridItem><QuickTile emoji="😣" label="Anxiety" onClick={() => handleQuick('Anxiety')} /></GridItem>
+                        <GridItem><QuickTile emoji="🤢" label="Stomach ache" onClick={() => handleQuick('Stomach pain')} /></GridItem>
+                    </Grid>
+                </Box>
 
-                    <MotionBox bg="white" p={5} rounded="2xl" shadow="lg" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-                        <VStack spacing={4}>
-                            <Textarea placeholder="e.g., chest tightness and heart racing since morning..." value={symptoms} onChange={(e) => setSymptoms(e.target.value)} minH="120px" />
-                            <Button colorScheme="brand" size="lg" isLoading={loading} onClick={handleSubmit} w="100%">🔮 Analyze Symptoms</Button>
-                        </VStack>
-                    </MotionBox>
+                <Text textAlign="center" color="gray.600">Quick tiles pick the most common starting flows — you can still type anything above.</Text>
+            </VStack>
 
-                    {result && result.ok && <ResultCard result={result.result} />}
-
-                    <Text color="whiteAlpha.700" fontSize="sm" textAlign="center">⚠️ Not medical advice — use this for guidance and seek a doctor for urgent issues.</Text>
-                </VStack>
-            </Container>
-        </Box>
+            <MCQModal
+                isOpen={isOpen}
+                onClose={() => setIsOpen(false)}
+                questions={questions}
+                symptom={symptom}
+                onComplete={(answers) => {
+                    // pass answers into result route
+                    navigate('/result', { state: { symptom, answers } });
+                }}
+            />
+        </Container>
     );
 }

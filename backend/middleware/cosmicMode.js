@@ -28,7 +28,7 @@ module.exports = function cosmicMode(req, res, next) {
                 body.result = addCosmicTouchToResult(body.result);
             }
         } catch (err) {
-            // ignore
+            console.warn('Cosmic touch modification failed:', err.message);
         }
         return oldJson.call(this, body);
     };

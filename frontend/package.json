@@ -14,13 +14,14 @@
     "@emotion/styled": "^11.11.0",
     "axios": "^1.6.0",
     "framer-motion": "^10.12.17",
-    "i18next": "^23.0.1",
+    "i18next": "^23.7.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-i18next": "^12.4.1"
+    "react-i18next": "^13.5.0",
+    "react-router-dom": "^6.8.0"
   },
   "devDependencies": {
-    "vite": "^4.4.9",
+    "vite": "^5.0.0",
     "@vitejs/plugin-react": "^4.0.0"
   }
 }
