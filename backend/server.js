@@ -2,52 +2,45 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-
-// Lazy loading for modules that may not be immediately needed
-let axios;
-let rateLimit;
-let helmet;
-
-// Lazy load helpers
-function getAxios() {
-    if (!axios) axios = require('axios');
-    return axios;
-}
-
-function getRateLimit() {
-    if (!rateLimit) rateLimit = require('express-rate-limit');
-    return rateLimit;
-}
-
-function getHelmet() {
-    if (!helmet) helmet = require('helmet');
-    return helmet;
-}
+const axios = require('axios');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const crypto = require('crypto');
 
 dotenv.config();
 const app = express();
 const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:5173'];
 
 // Security middleware
-app.use(getHelmet()());
+app.use(helmet());
 app.use(cors({
     origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
 }));
 app.use(express.json({ limit: '10mb' }));
 
+// CSRF token generation
+const csrfTokens = new Map();
+app.get('/api/csrf-token', (req, res) => {
+    const token = crypto.randomBytes(32).toString('hex');
+    const ip = req.ip || req.connection.remoteAddress;
+    csrfTokens.set(ip, { token, expires: Date.now() + 3600000 }); // 1 hour
+    res.json({ csrfToken: token });
+});
+
 // Rate limiting
-const limiter = getRateLimit()({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
     message: 'Too many requests from this IP'
 });
 app.use('/api/', limiter);
 
 // Secure logging middleware
-function sanitizeForLog(obj) {
+function sanitizeForLog(obj, depth = 0) {
+    if (depth > 3) return '[MAX_DEPTH]';
     if (typeof obj === 'string') {
         return encodeURIComponent(obj).substring(0, 100);
     }
@@ -58,6 +51,8 @@ function sanitizeForLog(obj) {
                 sanitized[key] = '[REDACTED]';
             } else if (typeof value === 'string') {
                 sanitized[key] = encodeURIComponent(value).substring(0, 50);
+            } else if (typeof value === 'object') {
+                sanitized[key] = sanitizeForLog(value, depth + 1);
             } else {
                 sanitized[key] = value;
             }
@@ -85,7 +80,7 @@ if (process.env.NODE_ENV === 'development') {
     console.log('=== ENVIRONMENT CHECK ===');
     console.log('PORT:', PORT);
     console.log('OPENROUTER_KEY present:', !!OPENROUTER_KEY);
-    console.log('OPENROUTER_KEY length:', OPENROUTER_KEY ? OPENROUTER_KEY.length : 0);
+    console.log('OPENROUTER_KEY configured:', !!OPENROUTER_KEY);
     console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
     console.log('NODE_ENV:', process.env.NODE_ENV);
     console.log('========================');
@@ -170,14 +165,14 @@ async function callOpenRouter(messages, opts = {}) {
             console.log('Calling OpenRouter with payload:', sanitizeForLog(payload));
         }
         
-        const resp = await getAxios().post(OPENROUTER_URL, payload, {
+        const resp = await axios.post(OPENROUTER_URL, payload, {
             headers: { 
                 Authorization: `Bearer ${OPENROUTER_KEY}`, 
                 'Content-Type': 'application/json',
                 'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
                 'X-Title': 'SymptomAI'
             },
-            timeout: 30000
+            timeout: 15000
         });
         
         if (process.env.NODE_ENV === 'development') {
@@ -186,7 +181,7 @@ async function callOpenRouter(messages, opts = {}) {
         return resp.data;
     } catch (err) {
         console.error('=== OPENROUTER ERROR ===');
-        console.error('Error message:', sanitizeForLog(err.message));
+        console.error('Error message:', encodeURIComponent(err.message || ''));
         console.error('Error code:', err.code);
         
         // Network errors (DNS, connection issues)
@@ -204,18 +199,24 @@ async function callOpenRouter(messages, opts = {}) {
 
 // Enhanced CSRF protection middleware
 function csrfProtection(req, res, next) {
-    const origin = req.get('Origin');
-    const referer = req.get('Referer');
+    const token = req.get('X-CSRF-Token');
+    const ip = req.ip || req.connection.remoteAddress;
     
-    // Require either Origin or Referer header
-    if (!origin && !referer) {
-        return res.status(403).json({ error: 'Missing origin/referer header' });
+    if (!token) {
+        return res.status(403).json({ error: 'CSRF token required' });
     }
     
-    const requestOrigin = origin || referer;
-    if (!allowedOrigins.some(allowed => requestOrigin.startsWith(allowed))) {
+    const storedToken = csrfTokens.get(ip);
+    if (!storedToken || storedToken.token !== token || Date.now() > storedToken.expires) {
+        csrfTokens.delete(ip);
+        return res.status(403).json({ error: 'Invalid or expired CSRF token' });
+    }
+    
+    const origin = req.get('Origin');
+    if (origin && !allowedOrigins.includes(origin)) {
         return res.status(403).json({ error: 'Forbidden origin' });
     }
+    
     next();
 }
 
@@ -223,14 +224,28 @@ function csrfProtection(req, res, next) {
 const rateLimitMap = new Map();
 
 // Cleanup expired entries every 5 minutes
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [ip, data] of rateLimitMap.entries()) {
         if (now > data.resetTime) {
             rateLimitMap.delete(ip);
         }
     }
+    // Also cleanup expired CSRF tokens
+    for (const [ip, data] of csrfTokens.entries()) {
+        if (now > data.expires) {
+            csrfTokens.delete(ip);
+        }
+    }
 }, 5 * 60 * 1000);
+
+// Cleanup on process exit
+process.on('SIGTERM', () => {
+    clearInterval(cleanupInterval);
+});
+process.on('SIGINT', () => {
+    clearInterval(cleanupInterval);
+});
 
 function customRateLimit(req, res, next) {
     const ip = req.ip || req.connection.remoteAddress;
@@ -258,19 +273,28 @@ function customRateLimit(req, res, next) {
     next();
 }
 
-// Authorization middleware for protected routes
+// Simple API key authentication for demo purposes
+const API_KEYS = new Set([process.env.API_KEY || 'demo-key-12345']);
+
 function requireAuth(req, res, next) {
-    // For now, just check if request comes from allowed origins
-    // In production, implement proper JWT or session-based auth
+    const apiKey = req.get('X-API-Key');
     const origin = req.get('Origin') || req.get('Referer');
-    if (!origin || !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
-        return res.status(401).json({ error: 'Unauthorized' });
+    
+    // Allow requests from allowed origins without API key (for frontend)
+    if (origin && allowedOrigins.includes(origin)) {
+        return next();
     }
+    
+    // Require API key for other requests
+    if (!apiKey || !API_KEYS.has(apiKey)) {
+        return res.status(401).json({ error: 'Valid API key required' });
+    }
+    
     next();
 }
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', requireAuth, (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -353,7 +377,7 @@ app.post('/api/generate-mcqs', requireAuth, csrfProtection, customRateLimit, asy
         return res.status(500).json({ 
             error: 'Failed to generate questions', 
             details: err.message || 'Unknown error',
-            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+            stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
             questions: [
                 { id: 'onset', q: 'When did this start?', options: ['Today', 'This week', 'Longer ago'] },
                 { id: 'severity', q: 'How severe is it?', options: ['Mild', 'Moderate', 'Severe'] }
@@ -459,7 +483,7 @@ app.post('/api/analyze', requireAuth, csrfProtection, customRateLimit, async (re
         return res.status(500).json({ 
             error: 'Analysis failed', 
             details: err.message || 'Unknown error',
-            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
         });
     }
 });

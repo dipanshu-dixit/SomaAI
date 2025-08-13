@@ -1,5 +1,5 @@
 // backend/aiFlow.js
-const { callOpenRouter, safeParseJsonFromText } = require('./openrouterClient');
+const { callOpenRouter, safeParseJsonFromText } = require('./openrouterclient');
 
 // Configuration constants
 const AI_CONFIG = {
@@ -77,7 +77,7 @@ async function handleAICall(operation, prompt, config) {
         const result = await callOpenRouter([{ role: 'system', content: prompt }], config);
         return safeParseJsonFromText(result);
     } catch (error) {
-        console.error(`Error in ${operation}:`, error.message);
+        console.error(`Error in ${operation}:`, encodeURIComponent(error.message || ''));
         throw new Error(`Failed to ${operation}: ${error.message}`);
     }
 }
@@ -139,7 +139,7 @@ async function generateStructuredAnalysis(symptom, answers) {
         const result = await handleAICall('generate structured analysis', prompt, config);
         return normalizeStructuredData(result);
     } catch (error) {
-        const errorMsg = error.stack || error.message || String(error);
+        const errorMsg = error.message || 'Unknown error';
         throw new Error('Failed to parse structured result from AI: ' + errorMsg);
     }
 }
@@ -157,7 +157,7 @@ async function humanizeResponse(structuredData) {
         return mergeAnalysisData(structuredData, humanized);
     } catch (error) {
         const errorMsg = error.stack || error.message || String(error);
-        console.warn('Humanization failed, using fallback:', errorMsg);
+        console.warn('Humanization failed, using fallback:', encodeURIComponent(errorMsg));
         return createFallbackResponse(structuredData);
     }
 }
@@ -166,11 +166,16 @@ async function humanizeResponse(structuredData) {
 async function finalizeAnalysis(symptom, answers) {
     validateSymptom(symptom);
     
-    // Pass 1: Generate structured analysis
-    const structuredData = await generateStructuredAnalysis(symptom, answers);
-    
-    // Pass 2: Humanize the response
-    return await humanizeResponse(structuredData);
+    try {
+        // Pass 1: Generate structured analysis
+        const structuredData = await generateStructuredAnalysis(symptom, answers);
+        
+        // Pass 2: Humanize the response
+        return await humanizeResponse(structuredData);
+    } catch (error) {
+        console.error('Analysis failed:', encodeURIComponent(error.message || ''));
+        throw error;
+    }
 }
 
 module.exports = { generateMCQs, finalizeAnalysis };

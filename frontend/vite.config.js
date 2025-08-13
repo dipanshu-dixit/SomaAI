@@ -17,13 +17,13 @@ export default defineConfig({
   // Development server configuration
   server: {
     port: 5173,
-    host: '0.0.0.0', // Allow external connections
-    strictPort: true, // Exit if port is already in use
+    host: process.env.NODE_ENV === 'production' ? 'localhost' : '0.0.0.0',
+    strictPort: true,
   },
   
   // Build configuration
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: process.env.NODE_ENV !== 'production',
   },
 });

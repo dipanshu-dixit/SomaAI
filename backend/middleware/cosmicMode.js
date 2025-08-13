@@ -15,7 +15,7 @@ function addCosmicTouchToResult(result) {
 
     return {
         ...result,
-        summary: `${result.summary} ${pick}`,
+        summary: `${result.summary || ''} ${pick}`,
         friendly: result.friendly ? `${result.friendly} ${pick}` : pick
     };
 }
@@ -28,7 +28,7 @@ module.exports = function cosmicMode(req, res, next) {
                 body.result = addCosmicTouchToResult(body.result);
             }
         } catch (err) {
-            console.warn('Cosmic touch modification failed:', err.message);
+            console.warn('Cosmic touch modification failed:', encodeURIComponent(err.message || ''));
         }
         return oldJson.call(this, body);
     };

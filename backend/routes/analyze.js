@@ -1,6 +1,7 @@
-import express from "express";
-import axios from "axios";
-import dotenv from "dotenv";
+// backend/routes/analyze.js
+const express = require('express');
+const axios = require('axios');
+const dotenv = require('dotenv');
 
 dotenv.config();
 const router = express.Router();
@@ -25,17 +26,15 @@ Your job:
 
 // Enhanced CSRF protection middleware
 function csrfProtection(req, res, next) {
-    const referer = req.get('Referer');
+    const token = req.get('X-CSRF-Token');
+    if (!token) {
+        return res.status(403).json({ error: 'CSRF token required' });
+    }
+    
     const origin = req.get('Origin');
     const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:5173'];
     
-    // Require either Origin or Referer header
-    if (!origin && !referer) {
-        return res.status(403).json({ error: 'Missing origin/referer header' });
-    }
-    
-    const requestOrigin = origin || referer;
-    if (!allowedOrigins.some(allowed => requestOrigin.startsWith(allowed))) {
+    if (origin && !allowedOrigins.includes(origin)) {
         return res.status(403).json({ error: 'Forbidden origin' });
     }
     
@@ -63,7 +62,7 @@ router.post("/analyze", csrfProtection, async (req, res) => {
                 model: "openai/gpt-4o-mini",
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
-                    { role: "user", content: `User symptoms: ${symptoms}` }
+                    { role: "user", content: `User symptoms: ${encodeURIComponent(symptoms)}` }
                 ],
                 temperature: 0.8,
             },
@@ -95,7 +94,7 @@ router.post("/analyze", csrfProtection, async (req, res) => {
         res.json(parsed);
 
     } catch (error) {
-        console.error("Error analyzing symptoms:", error);
+        console.error("Error analyzing symptoms:", encodeURIComponent(error.message || ''));
         
         // Handle specific error types
         if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
@@ -119,4 +118,4 @@ router.post("/analyze", csrfProtection, async (req, res) => {
     }
 });
 
-export default router;
+module.exports = router;
