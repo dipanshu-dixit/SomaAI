@@ -12,7 +12,7 @@ export default function SymptomForm({ onAnalyze, loading }) {
     return (
         <Box>
             <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={LABELS.PLACEHOLDER} minH="120px" />
-            <Button mt={3} colorScheme="brand" onClick={() => onAnalyze(text)} isLoading={loading}>{LABELS.BUTTON_TEXT}</Button>
+            <Button mt={3} colorScheme="brand" onClick={() => onAnalyze(text)} isLoading={loading} isDisabled={!text.trim()}>{LABELS.BUTTON_TEXT}</Button>
         </Box>
     );
 }

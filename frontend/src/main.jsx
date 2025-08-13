@@ -1,7 +1,9 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ChakraProvider, extendTheme, Box, Text } from '@chakra-ui/react';
+import { ChakraProvider, Box, Text } from '@chakra-ui/react';
+import theme from './theme';
 import App from './App';
+import './index.css';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -15,7 +17,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Application error:', error, errorInfo);
+    console.error('Application error:', encodeURIComponent(error.message || ''), encodeURIComponent(JSON.stringify(errorInfo)));
   }
 
   render() {
@@ -29,10 +31,10 @@ class ErrorBoundary extends React.Component {
             Failed to load application. Please refresh the page.
           </Text>
           <button 
-            onClick={() => window.location.reload()}
+            onClick={() => this.setState({ hasError: false, error: null })}
             style={{ padding: '8px 16px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
           >
-            Refresh Page
+            Try Again
           </button>
         </Box>
       );
@@ -42,24 +44,6 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// gentle custom theme
-const theme = extendTheme({
-  styles: {
-    global: {
-      body: {
-        bg: 'linear-gradient(180deg, #f7fbff 0%, #eef6ff 100%)',
-        color: '#0f1724',
-        fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial',
-      }
-    }
-  },
-  colors: {
-    brand: {
-      50: '#ebf5ff',
-      500: '#2b6cb0'
-    }
-  }
-});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

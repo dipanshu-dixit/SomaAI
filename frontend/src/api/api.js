@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getCsrfToken } from '../utils/csrf';
 
 // Configuration constants
 const API_CONFIG = {
@@ -19,6 +20,17 @@ const API = axios.create({
     headers: API_CONFIG.HEADERS
 });
 
+// Add CSRF token to requests
+API.interceptors.request.use(async (config) => {
+    if (config.method !== 'get') {
+        const token = await getCsrfToken();
+        if (token) {
+            config.headers['X-CSRF-Token'] = token;
+        }
+    }
+    return config;
+});
+
 // Reusable error handling function
 function handleApiError(error, operation) {
     console.error(`Error ${operation}:`, error);
@@ -33,7 +45,7 @@ function handleApiError(error, operation) {
         throw new Error('Server error. Please try again.');
     }
     
-    throw error;
+    throw new Error('An unexpected error occurred. Please try again.');
 }
 
 // Input validation helper
@@ -48,7 +60,7 @@ export async function getQuestions(symptom) {
         validateSymptom(symptom);
         
         if (import.meta.env.DEV) {
-            console.log('Fetching questions for symptom');
+            console.log('Fetching questions for symptom:', encodeURIComponent(symptom));
         }
         
         const response = await API.post('/api/generate-mcqs', { symptom: symptom.trim() });
@@ -61,12 +73,9 @@ export async function getQuestions(symptom) {
         return questions.length > 0 ? questions : DEFAULT_QUESTIONS;
         
     } catch (error) {
-        try {
-            handleApiError(error, 'fetching questions');
-        } catch {
-            // Return default questions as fallback for API errors
-            return DEFAULT_QUESTIONS;
-        }
+        console.warn('API error, using fallback questions:', error.message);
+        // Return default questions as fallback for API errors
+        return DEFAULT_QUESTIONS;
     }
 }
 
@@ -75,7 +84,7 @@ export async function analyze(symptom, answers) {
         validateSymptom(symptom);
         
         if (import.meta.env.DEV) {
-            console.log('Analyzing symptom with answers');
+            console.log('Analyzing symptom with answers:', encodeURIComponent(symptom));
         }
         
         const response = await API.post('/api/analyze', { 
@@ -91,6 +100,5 @@ export async function analyze(symptom, answers) {
         
     } catch (error) {
         handleApiError(error, 'analyzing symptoms');
-        throw new Error(error.message || 'Failed to analyze symptoms. Please try again.');
     }
 }

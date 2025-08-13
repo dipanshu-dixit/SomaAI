@@ -34,9 +34,9 @@ export default function MCQModal({ isOpen, onClose, questions = [], symptom, onC
         setAnswers({});
     }, [questions]);
 
-    if (!isOpen) return null;
+    if (!isOpen || !questions.length) return null;
     const current = questions[idx];
-    const progress = Math.round(((idx) / Math.max(1, questions.length)) * 100);
+    const progress = Math.round(((idx + 1) / Math.max(1, questions.length)) * 100);
 
     const setAnswer = (val) => {
         setAnswers(prev => ({ ...prev, [current.id]: val }));
@@ -54,7 +54,7 @@ export default function MCQModal({ isOpen, onClose, questions = [], symptom, onC
     const back = () => { if (idx > 0) setIdx(idx - 1); };
 
     return (
-        <Modal isOpen={isOpen} onClose={() => { onClose(); }} isCentered size="lg">
+        <Modal isOpen={isOpen} onClose={onClose} isCentered size="lg">
             <ModalOverlay />
             <ModalContent>
                 <ModalHeader>{LABELS.HEADER_PREFIX}{symptom}</ModalHeader>
@@ -67,7 +67,7 @@ export default function MCQModal({ isOpen, onClose, questions = [], symptom, onC
                             <Text fontWeight="semibold" mb={3}>{current?.q}</Text>
                             <RadioGroup value={answers[current?.id] || ''} onChange={setAnswer}>
                                 <Stack direction="column">
-                                    {current?.options?.map((opt, index) => <Radio key={index} value={opt}>{opt}</Radio>)}
+                                    {current?.options?.map((opt, index) => <Radio key={`${current.id}-${opt}`} value={opt}>{opt}</Radio>)}
                                 </Stack>
                             </RadioGroup>
                         </MotionBox>

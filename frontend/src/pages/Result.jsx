@@ -44,27 +44,45 @@ export default function Result() {
 
     // Memoized handlers to prevent re-renders
     const handleTryAgain = useCallback(() => {
-        window.location.reload();
-    }, []);
+        setResult(null);
+        setError(null);
+        setLoading(true);
+        (async () => {
+            try {
+                const r = await analyze(symptom, answers);
+                setResult(r);
+            } catch (err) {
+                setError(err.message || 'Failed to get AI response. Please try again.');
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [symptom, answers]);
 
     const handleBack = useCallback(() => {
         navigate('/');
     }, [navigate]);
 
     const handleAskAgain = useCallback(() => {
-        window.location.reload();
-    }, []);
+        navigate('/');
+    }, [navigate]);
 
     // Memoized lists to prevent re-renders
     const possibleCausesList = useMemo(() => {
-        return result?.possibleCauses?.map((c, i) => (
-            <ListItem key={i}>• {c}</ListItem>
+        if (!result?.possibleCauses || !Array.isArray(result.possibleCauses)) {
+            return null;
+        }
+        return result.possibleCauses.map((c, i) => (
+            <ListItem key={`cause-${i}`}>• {c}</ListItem>
         ));
     }, [result?.possibleCauses]);
 
     const nextStepsList = useMemo(() => {
-        return result?.nextSteps?.map((s, i) => (
-            <ListItem key={i}>✅ {s}</ListItem>
+        if (!result?.nextSteps || !Array.isArray(result.nextSteps)) {
+            return null;
+        }
+        return result.nextSteps.map((s, i) => (
+            <ListItem key={`step-${i}`}>✅ {s}</ListItem>
         ));
     }, [result?.nextSteps]);
 
@@ -110,19 +128,23 @@ export default function Result() {
                                 <Text mt={2} color="gray.600">{result.friendlyNote}</Text>
                             </Box>
 
-                            <Box bg="white">
-                                <Text fontWeight="semibold">Possible causes</Text>
-                                <List spacing={2} mt={2}>
-                                    {possibleCausesList}
-                                </List>
-                            </Box>
+                            {possibleCausesList && (
+                                <Box bg="white">
+                                    <Text fontWeight="semibold">Possible causes</Text>
+                                    <List spacing={2} mt={2}>
+                                        {possibleCausesList}
+                                    </List>
+                                </Box>
+                            )}
 
-                            <Box bg="white">
-                                <Text fontWeight="semibold">Next steps</Text>
-                                <List spacing={2} mt={2}>
-                                    {nextStepsList}
-                                </List>
-                            </Box>
+                            {nextStepsList && (
+                                <Box bg="white">
+                                    <Text fontWeight="semibold">Next steps</Text>
+                                    <List spacing={2} mt={2}>
+                                        {nextStepsList}
+                                    </List>
+                                </Box>
+                            )}
 
                             <Text fontSize="sm" color="gray.500">Confidence: {result.confidence || 'N/A'}</Text>
                             <HStack spacing={3}>
