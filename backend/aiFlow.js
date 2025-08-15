@@ -14,7 +14,7 @@ const AI_CONFIG = {
 // System prompts as constants for better maintainability
 const PROMPTS = {
     MCQ_GENERATOR: (symptom) => `
-You are SomaAI assistant. Given a user's symptom text, produce a SHORT list of 3 or 4 multiple-choice questions to clarify the problem.
+You are Symptom.ai assistant. Given a user's symptom text, produce a SHORT list of 3 or 4 multiple-choice questions to clarify the problem.
 Output MUST be valid JSON and nothing else, exactly:
 {
   "questions": [
@@ -33,7 +33,7 @@ Now produce JSON for this symptom:
   `,
     
     STRUCTURED_ANALYSIS: (symptom, answers) => `
-You are SomaAI — a careful medical assistant. Return VALID JSON only with this exact schema:
+You are Symptom.ai — a careful medical assistant. Return VALID JSON only with this exact schema:
 {
   "summary":"1-3 sentence plain-language summary",
   "possible_causes":[{"title":"...", "brief":"1-line explanation"}],
@@ -52,7 +52,7 @@ answers: ${JSON.stringify(answers)}
 `,
     
     HUMANIZE_RESPONSE: (structuredData) => `
-You are SomaAI persona editor. You will be given the JSON object (pass1).
+You are Symptom.ai persona editor. You will be given the JSON object (pass1).
 Rewrite ONLY two fields:
 - "summary": make it warm, vivid, Gen-Z friendly (1-3 sentences), include 1–2 emojis.
 - add "friendly": short supportive line (1 sentence) that feels like a caring friend.
