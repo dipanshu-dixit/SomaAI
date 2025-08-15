@@ -8,7 +8,7 @@ const router = express.Router();
 
 // Move system prompt to module level for performance
 const SYSTEM_PROMPT = `
-You are SymptomAI — a friendly, approachable, Gen Z medical assistant.  
+You are Symptom.ai — a friendly, approachable, Gen Z medical assistant.
 Your job:
 - Explain possible conditions in short, casual sentences with emojis.
 - Use a warm, human-like tone.

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Box, Container, Heading, Text, VStack, HStack, Tag, Button, Spinner, List, ListItem } from '@chakra-ui/react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { analyze } from '../api/api';
+import { analyze, getCosmicInsight } from '../api/api';
 
 // Helper function for urgency color scheme
 function getUrgencyColorScheme(urgency) {
@@ -18,9 +18,28 @@ export default function Result() {
     const navigate = useNavigate();
     const symptom = state?.symptom || '';
     const answers = state?.answers || {};
+    const type = state?.type || 'physical';
     const [loading, setLoading] = useState(true);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
+    const [cosmicInsight, setCosmicInsight] = useState('');
+    const [isCosmicLoading, setIsCosmicLoading] = useState(false);
+
+    const handleCosmicInsight = async () => {
+        if (!result) return;
+        setIsCosmicLoading(true);
+        try {
+            const context = { symptom, summary: result.summary };
+            const insight = await getCosmicInsight(context);
+            setCosmicInsight(insight);
+        } catch (error) {
+            // Non-critical error, so just log it. No toast needed.
+            console.error("Could not fetch cosmic insight:", error);
+            setCosmicInsight("There was a small hiccup, but remember: every breath is a new beginning.");
+        } finally {
+            setIsCosmicLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!symptom) {
@@ -31,7 +50,7 @@ export default function Result() {
             try {
                 setLoading(true);
                 setError(null);
-                const r = await analyze(symptom, answers);
+                const r = await analyze(symptom, answers, type);
                 setResult(r);
             } catch (err) {
                 console.error('Analysis error:', err);
@@ -40,7 +59,26 @@ export default function Result() {
                 setLoading(false);
             }
         })();
-    }, [symptom, answers, navigate]);
+    }, [symptom, answers, navigate, type]);
+
+    // Save result to local storage
+    useEffect(() => {
+        if (result) {
+            const newEntry = {
+                id: new Date().toISOString(),
+                date: new Date().toLocaleDateString(),
+                symptom: symptom,
+                urgency: result.urgency,
+                summary: result.summary,
+            };
+            const history = JSON.parse(localStorage.getItem('symptomHistory') || '[]');
+            // To prevent duplicates on re-renders, check if the last entry is the same
+            if (history.length === 0 || history[0].summary !== newEntry.summary) {
+                 const updatedHistory = [newEntry, ...history];
+                 localStorage.setItem('symptomHistory', JSON.stringify(updatedHistory));
+            }
+        }
+    }, [result, symptom]);
 
     // Memoized handlers to prevent re-renders
     const handleTryAgain = useCallback(() => {
@@ -49,7 +87,7 @@ export default function Result() {
         setLoading(true);
         (async () => {
             try {
-                const r = await analyze(symptom, answers);
+                const r = await analyze(symptom, answers, type);
                 setResult(r);
             } catch (err) {
                 setError(err.message || 'Failed to get AI response. Please try again.');
@@ -57,7 +95,7 @@ export default function Result() {
                 setLoading(false);
             }
         })();
-    }, [symptom, answers]);
+    }, [symptom, answers, type]);
 
     const handleBack = useCallback(() => {
         navigate('/');
@@ -127,6 +165,25 @@ export default function Result() {
                                 <Text mt={2}>{result.summary}</Text>
                                 <Text mt={2} color="gray.600">{result.friendlyNote}</Text>
                             </Box>
+
+                            {result.cosmic && !cosmicInsight && (
+                                <Button
+                                    mt={2}
+                                    colorScheme="purple"
+                                    variant="outline"
+                                    onClick={handleCosmicInsight}
+                                    isLoading={isCosmicLoading}
+                                    size="sm"
+                                >
+                                    ✨ Tell me more
+                                </Button>
+                            )}
+
+                            {cosmicInsight && (
+                                <Box bg="purple.50" p={4} borderRadius="md" mt={2}>
+                                    <Text color="purple.800" fontStyle="italic">{cosmicInsight}</Text>
+                                </Box>
+                            )}
 
                             {possibleCausesList && (
                                 <Box bg="white">

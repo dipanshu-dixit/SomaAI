@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
-// Vite configuration for SymptomAI frontend
+// Vite configuration for Symptom.ai frontend
 export default defineConfig({
   // React plugin configuration
   plugins: [react()],

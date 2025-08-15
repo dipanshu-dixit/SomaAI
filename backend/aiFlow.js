@@ -14,7 +14,7 @@ const AI_CONFIG = {
 // System prompts as constants for better maintainability
 const PROMPTS = {
     MCQ_GENERATOR: (symptom) => `
-You are SomaAI assistant. Given a user's symptom text, produce a SHORT list of 3 or 4 multiple-choice questions to clarify the problem.
+You are Symptom.ai assistant. Given a user's symptom text, produce a SHORT list of 3 or 4 multiple-choice questions to clarify the problem.
 Output MUST be valid JSON and nothing else, exactly:
 {
   "questions": [
@@ -33,7 +33,7 @@ Now produce JSON for this symptom:
   `,
     
     STRUCTURED_ANALYSIS: (symptom, answers) => `
-You are SomaAI — a careful medical assistant. Return VALID JSON only with this exact schema:
+You are Symptom.ai — a careful medical assistant. Return VALID JSON only with this exact schema:
 {
   "summary":"1-3 sentence plain-language summary",
   "possible_causes":[{"title":"...", "brief":"1-line explanation"}],
@@ -52,7 +52,7 @@ answers: ${JSON.stringify(answers)}
 `,
     
     HUMANIZE_RESPONSE: (structuredData) => `
-You are SomaAI persona editor. You will be given the JSON object (pass1).
+You are Symptom.ai persona editor. You will be given the JSON object (pass1).
 Rewrite ONLY two fields:
 - "summary": make it warm, vivid, Gen-Z friendly (1-3 sentences), include 1–2 emojis.
 - add "friendly": short supportive line (1 sentence) that feels like a caring friend.
@@ -61,6 +61,14 @@ Do NOT change possible_causes, next_steps, urgency, grounding, cosmic.
 Respond with JSON only, same keys as original, with updated summary and friendly.
 Original JSON:
 ${JSON.stringify(structuredData, null, 2)}
+`,
+
+    QUICK_QUERY: (question) => `
+You are Symptom.ai, a friendly and helpful AI assistant. A user has asked a general health question.
+Provide a clear, concise, and safe answer in 2-4 sentences.
+Do not give medical advice. If the question is sensitive or complex, advise the user to consult a healthcare professional.
+Here is the user's question:
+"""${question}"""
 `
 };
 
@@ -178,4 +186,25 @@ async function finalizeAnalysis(symptom, answers) {
     }
 }
 
-module.exports = { generateMCQs, finalizeAnalysis };
+// Function for the "Is this normal?" quick query feature
+async function generateQuickAnswer(question) {
+    validateSymptom(question); // Re-using for basic string validation
+
+    const prompt = PROMPTS.QUICK_QUERY(question);
+    const config = {
+        temperature: 0.3,
+        max_tokens: 150,
+        model: 'openai/gpt-4o-mini' // Using a fast and capable model
+    };
+
+    try {
+        // callOpenRouter returns the text content directly
+        const result = await callOpenRouter([{ role: 'system', content: prompt }], config);
+        return result;
+    } catch (error) {
+        console.error(`Error in generateQuickAnswer:`, encodeURIComponent(error.message || ''));
+        throw new Error(`Failed to generate quick answer: ${error.message}`);
+    }
+}
+
+module.exports = { generateMCQs, finalizeAnalysis, generateQuickAnswer };

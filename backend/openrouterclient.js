@@ -33,7 +33,7 @@ async function callOpenRouter(messages, opts = {}) {
         Authorization: `Bearer ${apiKey}`, 
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://symptom.ai',
-        'X-Title': 'SymptomAI'
+        'X-Title': 'Symptom.ai'
       },
       timeout: 15000
     });

@@ -103,7 +103,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // "if you're unsure or concerned, advise to seek urgent clinical care".
 
 const MCQ_GENERATOR_SYSTEM_PROMPT = `
-You are SomA AI's MCQ designer. The user gave a short symptom phrase or sentence.
+You are Symptom.ai's MCQ designer. The user gave a short symptom phrase or sentence.
 Return a JSON array only (no text) of 3–5 multiple-choice questions to clarify the symptom.
 Each question must be short (<= 60 characters), use simple language, and have 2–4 options.
 Use keys: id (short ascii), q (text), options (array of strings).
@@ -116,8 +116,22 @@ Example output:
 ]
 `;
 
+const MENTAL_MCQ_GENERATOR_SYSTEM_PROMPT = `
+You are Symptom.ai's MCQ designer, specialized in mental wellness. The user wants to do a 'mind check-in'.
+Return a JSON array only (no text) of 3-5 multiple-choice questions to clarify their state.
+Focus on mood, energy, sleep, and recent changes.
+Each question must be short (<= 60 characters), use simple, gentle language, and have 2-4 options.
+Use keys: id (short ascii), q (text), options (array of strings).
+Do NOT ask for PHI. Keep tone supportive and calm.
+Example output:
+[
+  {"id":"mood","q":"How has your mood been recently?","options":["Generally positive","Mixed","Generally negative"]},
+  ...
+]
+`;
+
 const ANALYZER_SYSTEM_PROMPT = `
-You are SomA AI, a friendly, safety-first medical guidance assistant focused on short, warm, useful explanations.
+You are Symptom.ai, a friendly, safety-first medical guidance assistant focused on short, warm, useful explanations.
 You MUST RETURN JSON ONLY (no extra prose) with EXACT keys:
 {
   "summary": "<one-line friendly summary, 12-22 words>",
@@ -146,6 +160,27 @@ Return only the JSON object. Example:
 }
 `;
 
+const MENTAL_ANALYZER_SYSTEM_PROMPT = `
+You are Symptom.ai, a friendly, safety-first mental wellness assistant.
+You MUST RETURN JSON ONLY (no extra prose) with EXACT keys:
+{
+  "summary": "<one-line gentle summary, 12-22 words>",
+  "friendlyNote": "<one short supportive sentence with 0-2 emojis>",
+  "urgency": "<LOW|MEDIUM|HIGH>",
+  "possibleCauses": ["short phrase", "..."],
+  "nextSteps": ["practical actionable steps (3-6), focus on self-care, mindfulness, and seeking support"],
+  "confidence": "<percentage, e.g. 70%>"
+}
+Guidelines:
+- Use the user's check-in topic + provided MCQ answers.
+- Urgency: set HIGH ONLY if self-harm or crisis is clearly indicated.
+- Use simple, empathetic, non-clinical language.
+- If HIGH urgency, the first step MUST be to contact a crisis line or emergency services.
+- Do NOT give a definitive diagnosis (e.g., "Depression"). Instead, describe patterns (e.g., "a pattern of low mood and energy").
+- If user mentions crisis or self-harm, prioritize safety instructions.
+Return only the JSON object.
+`;
+
 // helper to call openrouter
 async function callOpenRouter(messages, opts = {}) {
     if (!OPENROUTER_KEY) {
@@ -170,7 +205,7 @@ async function callOpenRouter(messages, opts = {}) {
                 Authorization: `Bearer ${OPENROUTER_KEY}`, 
                 'Content-Type': 'application/json',
                 'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
-                'X-Title': 'SymptomAI'
+                'X-Title': 'Symptom.ai'
             },
             timeout: 15000
         });
@@ -298,17 +333,26 @@ app.get('/api/health', requireAuth, (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Quick query endpoint
+const quickQueryRouter = require('./routes/quickQuery');
+app.use('/api/quick-query', requireAuth, csrfProtection, customRateLimit, quickQueryRouter);
+
+// Cosmic insight endpoint
+const cosmicInsightRouter = require('./routes/cosmicInsight');
+app.use('/api/cosmic-insight', requireAuth, csrfProtection, customRateLimit, cosmicInsightRouter);
+
+
 // Endpoint: generate MCQs (AI)
 app.post('/api/generate-mcqs', requireAuth, csrfProtection, customRateLimit, async (req, res) => {
     try {
         if (process.env.NODE_ENV === 'development') {
             console.log('MCQ request body:', sanitizeForLog(req.body));
         }
-        const { symptom } = req.body || {};
+        const { symptom, type } = req.body || {};
         if (!symptom || typeof symptom !== 'string') {
             return res.status(400).json({ error: 'symptom required and must be a string' });
         }
-        
+
         // Decode URL-encoded symptom
         const decodedSymptom = decodeURIComponent(symptom.trim());
         if (process.env.NODE_ENV === 'development') {
@@ -325,8 +369,12 @@ app.post('/api/generate-mcqs', requireAuth, csrfProtection, customRateLimit, asy
             return res.json({ questions: sample, debug: 'sample because no API key' });
         }
 
+        const system_prompt = type === 'mental'
+            ? MENTAL_MCQ_GENERATOR_SYSTEM_PROMPT
+            : MCQ_GENERATOR_SYSTEM_PROMPT;
+
         const messages = [
-            { role: 'system', content: MCQ_GENERATOR_SYSTEM_PROMPT },
+            { role: 'system', content: system_prompt },
             { role: 'user', content: `Symptom: ${decodedSymptom}\nReturn JSON array of MCQs.` }
         ];
 
@@ -489,9 +537,9 @@ app.post('/api/analyze', requireAuth, csrfProtection, customRateLimit, async (re
 });
 
 app.get('/', (req, res) => {
-    res.send('SomaAI backend up');
+    res.send('Symptom.ai backend up');
 });
 
 app.listen(PORT, () => {
-    console.log(`✅ SomaAI backend running on http://localhost:${PORT}`);
+    console.log(`✅ Symptom.ai backend running on http://localhost:${PORT}`);
 });
