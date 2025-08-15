@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import {
     Box, Container, Heading, Input, IconButton, Grid, GridItem,
-    Button, Text, VStack, HStack, useToast, chakra,
-    Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter
+    Button, Text, VStack, HStack, useToast, chakra
 } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
 import MCQModal from '../components/MCQModal';
@@ -18,6 +17,14 @@ const QuickTile = ({ emoji, label, onClick }) => (
     </Button>
 );
 
+const AnswerCard = ({ answer, onClear }) => (
+    <Box p={6} bg="white" borderRadius="lg" boxShadow="xl">
+        <Heading size="md" mb={4} color="purple.600">Answer</Heading>
+        <Text whiteSpace="pre-wrap" mb={6} color="gray.700">{answer}</Text>
+        <Button onClick={onClear} colorScheme="purple">Ask Another Question</Button>
+    </Box>
+);
+
 export default function Home() {
     const [symptom, setSymptom] = useState('');
     const [questions, setQuestions] = useState([]);
@@ -25,7 +32,6 @@ export default function Home() {
     const [flowType, setFlowType] = useState('physical');
     const [quickQuery, setQuickQuery] = useState('');
     const [quickQueryAnswer, setQuickQueryAnswer] = useState('');
-    const [isQuickQueryOpen, setQuickQueryOpen] = useState(false);
     const [quickQueryLoading, setQuickQueryLoading] = useState(false);
     const toast = useToast();
     const navigate = useNavigate();
@@ -39,7 +45,6 @@ export default function Home() {
     const loadQuestions = async (sym) => {
         try {
             toast({ title: 'Loading questions...', status: 'info', duration: 1000 });
-            // Use the state `flowType` which is set before this function is called.
             const qs = await getQuestions(sym, flowType);
             setQuestions(qs || []);
             setIsOpen(true);
@@ -70,7 +75,6 @@ export default function Home() {
         try {
             const answer = await apiQuickQuery(quickQuery);
             setQuickQueryAnswer(answer);
-            setQuickQueryOpen(true);
         } catch (error) {
             toast({
                 title: 'Error',
@@ -85,60 +89,64 @@ export default function Home() {
 
     return (
         <Container maxW="container.md" py={8}>
-            <VStack spacing={6} align="stretch">
-                <Box bgGradient="linear(to-r, blue.400, purple.400)" p={6} borderRadius="md" color="white">
-                    <HStack justify="space-between">
-                        <Heading size="lg">Symptom.ai</Heading>
-                        <Button variant="ghost" colorScheme="whiteAlpha" onClick={() => navigate('/history')}>
-                            History
-                        </Button>
-                    </HStack>
-                    <Text mt={4} opacity={0.9}>Understand your body and mind</Text>
-                    <form onSubmit={onSubmitSearch}>
-                        <HStack mt={4}>
-                            <Input
-                                placeholder="Search for a symptom or question"
-                                value={symptom}
-                                onChange={(e) => setSymptom(e.target.value)}
-                                bg="white"
-                                color="gray.800"
-                                borderRadius="full"
-                            />
-                            <IconButton type="submit" aria-label="search" icon={<SearchIcon />} colorScheme="blue" />
+            {quickQueryAnswer ? (
+                <AnswerCard answer={quickQueryAnswer} onClear={() => setQuickQueryAnswer('')} />
+            ) : (
+                <VStack spacing={6} align="stretch">
+                    <Box bgGradient="linear(to-r, blue.400, purple.400)" p={6} borderRadius="md" color="white">
+                        <HStack justify="space-between">
+                            <Heading size="lg">Symptom.ai</Heading>
+                            <Button variant="ghost" colorScheme="whiteAlpha" onClick={() => navigate('/history')}>
+                                History
+                            </Button>
                         </HStack>
-                    </form>
-                </Box>
+                        <Text mt={4} opacity={0.9}>Understand your body and mind</Text>
+                        <form onSubmit={onSubmitSearch}>
+                            <HStack mt={4}>
+                                <Input
+                                    placeholder="Search for a symptom or question"
+                                    value={symptom}
+                                    onChange={(e) => setSymptom(e.target.value)}
+                                    bg="white"
+                                    color="gray.800"
+                                    borderRadius="full"
+                                />
+                                <IconButton type="submit" aria-label="search" icon={<SearchIcon />} colorScheme="blue" />
+                            </HStack>
+                        </form>
+                    </Box>
 
-                <Box p={4} bg="white" borderRadius="md" boxShadow="sm">
-                    <Heading size="md" mb={3}>Check your symptoms</Heading>
-                    <Grid templateColumns="repeat(3, 1fr)" gap={3}>
-                        <GridItem><QuickTile emoji="💧" label="Headache" onClick={() => handleQuick('Headache')} /></GridItem>
-                        <GridItem><QuickTile emoji="😴" label="Can't sleep" onClick={() => handleQuick('Can\'t sleep')} /></GridItem>
-                        <GridItem><QuickTile emoji="❤️" label="Chest pain" onClick={() => handleQuick('Chest pain')} /></GridItem>
-                        <GridItem><QuickTile emoji="🥵" label="Fever" onClick={() => handleQuick('Fever')} /></GridItem>
-                        <GridItem><QuickTile emoji="😣" label="Anxiety" onClick={() => handleQuick('Anxiety')} /></GridItem>
-                        <GridItem><QuickTile emoji="🧠" label="Mind Check-in" onClick={() => handleQuick('Mental Health Check-in', 'mental')} /></GridItem>
-                        <GridItem><QuickTile emoji="🤢" label="Stomach ache" onClick={() => handleQuick('Stomach pain')} /></GridItem>
-                    </Grid>
-                </Box>
+                    <Box p={4} bg="white" borderRadius="md" boxShadow="sm">
+                        <Heading size="md" mb={3}>Check your symptoms</Heading>
+                        <Grid templateColumns="repeat(3, 1fr)" gap={3}>
+                            <GridItem><QuickTile emoji="💧" label="Headache" onClick={() => handleQuick('Headache')} /></GridItem>
+                            <GridItem><QuickTile emoji="😴" label="Can't sleep" onClick={() => handleQuick('Can\'t sleep')} /></GridItem>
+                            <GridItem><QuickTile emoji="❤️" label="Chest pain" onClick={() => handleQuick('Chest pain')} /></GridItem>
+                            <GridItem><QuickTile emoji="🥵" label="Fever" onClick={() => handleQuick('Fever')} /></GridItem>
+                            <GridItem><QuickTile emoji="😣" label="Anxiety" onClick={() => handleQuick('Anxiety')} /></GridItem>
+                            <GridItem><QuickTile emoji="🧠" label="Mind Check-in" onClick={() => handleQuick('Mental Health Check-in', 'mental')} /></GridItem>
+                            <GridItem><QuickTile emoji="🤢" label="Stomach ache" onClick={() => handleQuick('Stomach pain')} /></GridItem>
+                        </Grid>
+                    </Box>
 
-                <Box p={4} bg="white" borderRadius="md" boxShadow="sm">
-                    <Heading size="md" mb={3}>Have a quick question?</Heading>
-                    <Text color="gray.600" mb={3}>e.g., "Is it normal to feel tired after lunch?"</Text>
-                    <form onSubmit={handleQuickQuerySubmit}>
-                        <HStack>
-                            <Input
-                                placeholder="Ask anything..."
-                                value={quickQuery}
-                                onChange={(e) => setQuickQuery(e.target.value)}
-                            />
-                            <Button type="submit" colorScheme="purple" isLoading={quickQueryLoading}>Ask</Button>
-                        </HStack>
-                    </form>
-                </Box>
+                    <Box p={4} bg="white" borderRadius="md" boxShadow="sm">
+                        <Heading size="md" mb={3}>Have a quick question?</Heading>
+                        <Text color="gray.600" mb={3}>e.g., "Is it normal to feel tired after lunch?"</Text>
+                        <form onSubmit={handleQuickQuerySubmit}>
+                            <HStack>
+                                <Input
+                                    placeholder="Ask anything..."
+                                    value={quickQuery}
+                                    onChange={(e) => setQuickQuery(e.target.value)}
+                                />
+                                <Button type="submit" colorScheme="purple" isLoading={quickQueryLoading}>Ask</Button>
+                            </HStack>
+                        </form>
+                    </Box>
 
-                <Text textAlign="center" color="gray.600">Quick tiles pick the most common starting flows — you can still type anything above.</Text>
-            </VStack>
+                    <Text textAlign="center" color="gray.600">Quick tiles pick the most common starting flows — you can still type anything above.</Text>
+                </VStack>
+            )}
 
             <MCQModal
                 isOpen={isOpen}
@@ -149,22 +157,6 @@ export default function Home() {
                     navigate('/result', { state: { symptom, answers, type: flowType } });
                 }}
             />
-
-            <Modal isOpen={isQuickQueryOpen} onClose={() => setQuickQueryOpen(false)} size="xl">
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Quick Answer</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody>
-                        <Text whiteSpace="pre-wrap">{quickQueryAnswer}</Text>
-                    </ModalBody>
-                    <ModalFooter>
-                        <Button colorScheme="blue" onClick={() => setQuickQueryOpen(false)}>
-                            Close
-                        </Button>
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
         </Container>
     );
 }

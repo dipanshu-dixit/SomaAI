@@ -61,6 +61,14 @@ Do NOT change possible_causes, next_steps, urgency, grounding, cosmic.
 Respond with JSON only, same keys as original, with updated summary and friendly.
 Original JSON:
 ${JSON.stringify(structuredData, null, 2)}
+`,
+
+    QUICK_QUERY: (question) => `
+You are Symptom.ai, a friendly and helpful AI assistant. A user has asked a general health question.
+Provide a clear, concise, and safe answer in 2-4 sentences.
+Do not give medical advice. If the question is sensitive or complex, advise the user to consult a healthcare professional.
+Here is the user's question:
+"""${question}"""
 `
 };
 
@@ -178,4 +186,25 @@ async function finalizeAnalysis(symptom, answers) {
     }
 }
 
-module.exports = { generateMCQs, finalizeAnalysis };
+// Function for the "Is this normal?" quick query feature
+async function generateQuickAnswer(question) {
+    validateSymptom(question); // Re-using for basic string validation
+
+    const prompt = PROMPTS.QUICK_QUERY(question);
+    const config = {
+        temperature: 0.3,
+        max_tokens: 150,
+        model: 'openai/gpt-4o-mini' // Using a fast and capable model
+    };
+
+    try {
+        // callOpenRouter returns the text content directly
+        const result = await callOpenRouter([{ role: 'system', content: prompt }], config);
+        return result;
+    } catch (error) {
+        console.error(`Error in generateQuickAnswer:`, encodeURIComponent(error.message || ''));
+        throw new Error(`Failed to generate quick answer: ${error.message}`);
+    }
+}
+
+module.exports = { generateMCQs, finalizeAnalysis, generateQuickAnswer };
